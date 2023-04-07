@@ -40,10 +40,12 @@ class ParserPapteki:
 
         for i in data:
             obj = i.find('a', class_='catalog__item-title')
-            self.data['name'].append(obj.text.strip())
-            self.data['url'].append(self.URL + obj.attrs['href'][1:])
-            self.data['producer'].append(i.find('div', class_='catalog__item-name').text.replace('Производитель:', ''))
-            self.data['cost'].append(i.find('div', class_='catalog__item-price').find('span').text)
+            self.data['name'].append(obj.text.strip() if obj else None)
+            self.data['url'].append(self.URL + obj.attrs['href'][1:] if obj else None)
+            producer_ = i.find('div', class_='catalog__item-name')
+            self.data['producer'].append(producer_.text.replace('Производитель:', '') if producer_ else None)
+            cost_ = i.find('div', class_='catalog__item-price').find('span')
+            self.data['cost'].append(cost_.text if cost_ else None)
 
         if max_page is None:
             page_bl = soup.find('div', class_='pagination-bl')
