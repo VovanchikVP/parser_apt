@@ -1,4 +1,5 @@
 from parser_papteki import ParserPapteki, ParserAloeapteka
+from lek.parser_24lek import Parser24Lek
 import click
 
 
@@ -15,6 +16,12 @@ def papteki():
 @parser.command()
 def aloeapteka():
     ParserAloeapteka()
+
+
+@parser.command()
+@click.argument('city')
+def lek(city):
+    Parser24Lek(int(city))
 
 
 if __name__ == '__main__':
