@@ -1,3 +1,5 @@
+import asyncio
+
 import pandas as pd
 from pathlib import Path
 from parser_papteki import ParserPapteki, ParserAloeapteka
@@ -7,6 +9,7 @@ from lek.config import CITY
 import os
 import click
 import ast
+from lekopttorg.lekopttorg import ParserLekopttorg
 
 
 class PythonLiteralOption(click.Option):
@@ -30,6 +33,11 @@ def papteki():
 @parser.command()
 def aloeapteka():
     ParserAloeapteka()
+
+
+@parser.command()
+def lekopttorg():
+    asyncio.run(ParserLekopttorg().run_parser())
 
 
 @parser.command()
