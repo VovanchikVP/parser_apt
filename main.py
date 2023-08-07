@@ -1,7 +1,7 @@
 import pandas as pd
 from pathlib import Path
 from parser_papteki import ParserPapteki, ParserAloeapteka
-from lek.parser_24lek import Parser24Lek
+from lek import Parser24Lek, Parser24LekAsync
 from typing import List
 from lek.config import CITY
 import os
@@ -42,11 +42,11 @@ def lek(city: int = 0, pharmacies: List[str] = None):
         data = input('Найдены ранее полученные данные. Взять данные из них?(да/нет) по умолчанию (нет): ')
         if data == 'да':
             df = pd.read_csv(f'lek_{CITY[city]}.csv', index_col=0)
-            Parser24Lek.create_excel_file(city, pharmacies, df)
+            Parser24LekAsync.create_excel_file(city, pharmacies, df)
         else:
-            Parser24Lek(city, pharmacies)
+            Parser24LekAsync(city, pharmacies)
     else:
-        Parser24Lek(city, pharmacies)
+        Parser24LekAsync(city, pharmacies)
 
 
 if __name__ == '__main__':
