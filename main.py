@@ -10,6 +10,8 @@ import os
 import click
 import ast
 from lekopttorg.lekopttorg import ParserLekopttorg
+from aptekanevis.aptekanevis import ParserAptekanevis
+from acmespb.acmespb import ParserAcmespb
 
 
 class PythonLiteralOption(click.Option):
@@ -38,6 +40,16 @@ def aloeapteka():
 @parser.command()
 def lekopttorg():
     asyncio.run(ParserLekopttorg().run_parser())
+
+
+@parser.command()
+def aptekanevis():
+    asyncio.run(ParserAptekanevis().run_parser())
+
+
+@parser.command()
+def acmespb():
+    asyncio.run(ParserAcmespb().run_parser())
 
 
 @parser.command()
