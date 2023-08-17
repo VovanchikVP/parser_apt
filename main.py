@@ -2,7 +2,8 @@ import asyncio
 
 import pandas as pd
 from pathlib import Path
-from parser_papteki import ParserPapteki, ParserAloeapteka
+from papteki.papteki import ParserPapteki
+from aloeapteka.aloeapteka import ParserAloeapteka
 from lek import Parser24Lek, Parser24LekAsync
 from typing import List
 from lek.config import CITY
@@ -12,6 +13,9 @@ import ast
 from lekopttorg.lekopttorg import ParserLekopttorg
 from aptekanevis.aptekanevis import ParserAptekanevis
 from acmespb.acmespb import ParserAcmespb
+from util.concat_files import concat_files_excel
+from util.send_mail import send_mail
+from util.config import USER, SEND_FROM
 
 
 class PythonLiteralOption(click.Option):
@@ -50,6 +54,15 @@ def aptekanevis():
 @parser.command()
 def acmespb():
     asyncio.run(ParserAcmespb().run_parser())
+
+
+@parser.command()
+def concat_and_send_mail():
+    file_name = 'Сводный.xlsx'
+    subject = 'Сводная по аптекам'
+    text = 'Сводная по аптекам'
+    concat_files_excel(file_name)
+    send_mail(USER, SEND_FROM, subject, text, [file_name])
 
 
 @parser.command()

@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 import aiohttp
 from urllib.parse import urljoin
 from util import print_progress_bar
-from acmespb.config import REGION, NAME_OF_DRUGS
+from acmespb.config import REGION
 from typing import List, Dict
 
 
@@ -34,6 +34,8 @@ class ParserAcmespb:
         self.result = {}
         self.sleep = sleep
         self.map_data = {}
+        self.alphabet = []
+        self.preparats_name = []
 
     async def run_parser(self):
         """Запуск парсера"""
@@ -127,16 +129,48 @@ class ParserAcmespb:
             print(f"Загрузка данных: {url_data['name']} - Завершина")
         await self._create_df()
 
+    async def _get_alphabet(self, data: str) -> None:
+        """Получение ссылок алфавита"""
+        print('Получение ссылок алфавита')
+        soup = BeautifulSoup(data, 'lxml')
+        urls = soup.find('ul', class_='alphabet')
+        for url in urls.find_all('a'):
+            self.alphabet.append(urljoin(self.URL, url.attrs['href']))
+        print('Ссылки алфавита сформированы')
+
+    async def _get_names_drugs(self, session: aiohttp.ClientSession):
+        """Получение ссылок на препараты"""
+        while self.alphabet:
+            ind = random.randrange(len(self.alphabet))
+            url = self.alphabet[ind]
+            del self.alphabet[ind]
+            async with session.get(url) as result:
+                data = await result.content.read()
+                data = data.decode("utf-8")
+                soup = BeautifulSoup(data, 'lxml')
+                names = soup.find('tbody', class_='alphabet_table')
+                result = []
+                for i in names.find_all('a'):
+                    result.append(i.text.strip()[:-1])
+            while result:
+                ind = random.randrange(len(result))
+                name = result[ind]
+                del result[ind]
+                yield name
+
     async def _search(self, session: aiohttp.ClientSession):
         """Поиск ссылок для препаратов"""
         async with session.get(self.URL) as result:
-            await result.content.read()
+            alphabet = await result.content.read()
+            alphabet = alphabet.decode("utf-8")
+            await self._get_alphabet(alphabet)
         async with session.post(self.MAP_DATA, data={'func': 'mapPharms'}) as result:
             map_data = await result.content.read()
             map_data = json.loads(map_data.decode("utf-8"))
             for i in map_data:
                 self.map_data[i['apt_adr']] = f"{i['apt_lat']}, {i['apt_lng']}"
-        for i in NAME_OF_DRUGS:
+        async for i in self._get_names_drugs(session):
+            print(i)
             data = await self._fetch_search(session, i)
             result = []
             for j in await self._get_url_data(data):
