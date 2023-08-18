@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 import aiohttp
 from urllib.parse import urljoin
 from util import print_progress_bar
-from acmespb.config import REGION
+from acmespb.config import REGION, NAME_OF_DRUGS_ALL, NAME_OF_DRUGS
 from typing import List, Dict
 
 
@@ -28,19 +28,27 @@ class ParserAcmespb:
         'apt_net': ''
     }
 
-    def __init__(self, sleep: int = 1):
-        self.data = {'name': [], 'cost': [], 'pharmacy': [], 'coordinates': [],
-                     'cost_in_pharmacy': [], 'count_in_pharmacy': []}
+    def __init__(self, sleep: int = 3):
+        self.data = {'name': [], 'cost': [], 'address': []}
         self.result = {}
         self.sleep = sleep
         self.map_data = {}
         self.alphabet = []
         self.preparats_name = []
+        self.all_drugs = []
 
-    async def run_parser(self):
+    async def run_parser(self, get_drugs: bool = False):
         """Запуск парсера"""
+        if get_drugs:
+            await self._get_all_alphabet()
+        else:
+            self.all_drugs = [i for i in NAME_OF_DRUGS_ALL]
         async with aiohttp.ClientSession() as session:
             await self._get_data_prepar(session)
+
+    async def _get_slip(self):
+        """Рандомное время засыпания"""
+        return random.uniform(0.5, self.sleep)
 
     async def _get_data(self, data: str, page_name: str):
         """Получение данных"""
@@ -55,16 +63,16 @@ class ParserAcmespb:
             self.result[page_name] = values
         for i in count_rows[1:]:
             name = i.find('div', class_='cell name').find('p').text.strip()
-            pharm = i.find('div', class_='cell pharm').find('a').text.strip()
+            # pharm = i.find('div', class_='cell pharm').find('a').text.strip()
             address = i.find('div', class_='cell address').find('a').text.strip()
-            coordinates = self.map_data.get(address)
+            # coordinates = self.map_data.get(address)
             cost = i.find('div', class_='cell pricefull').text.strip()
             values['name'].append(name)
             values['cost'].append(cost)
-            values['pharmacy'].append(pharm)
-            values['coordinates'].append(coordinates)
-            values['cost_in_pharmacy'].append(cost)
-            values['count_in_pharmacy'].append(None)
+            # values['pharmacy'].append(pharm)
+            values['address'].append(address)
+            # values['cost_in_pharmacy'].append(cost)
+            # values['count_in_pharmacy'].append(None)
 
     @staticmethod
     async def _fetch_requests(session: aiohttp.ClientSession, url: str, data: dict) -> str:
@@ -125,7 +133,7 @@ class ParserAcmespb:
                 progress += 1
                 print_progress_bar(progress, max_progress, prefix='Progress:', suffix='Complete', length=50)
 
-                time.sleep(self.sleep)
+                time.sleep(await self._get_slip())
             print(f"Загрузка данных: {url_data['name']} - Завершина")
         await self._create_df()
 
@@ -156,21 +164,31 @@ class ParserAcmespb:
                 ind = random.randrange(len(result))
                 name = result[ind]
                 del result[ind]
-                yield name
+                self.all_drugs.append(name)
+            time.sleep(2)
+
+    async def _get_all_alphabet(self):
+        """Получение списка всех препаратов"""
+        async with aiohttp.ClientSession() as session:
+            async with session.get(self.URL) as result:
+                alphabet = await result.content.read()
+                alphabet = alphabet.decode("utf-8")
+                await self._get_alphabet(alphabet)
+            await self._get_names_drugs(session)
 
     async def _search(self, session: aiohttp.ClientSession):
         """Поиск ссылок для препаратов"""
         async with session.get(self.URL) as result:
-            alphabet = await result.content.read()
-            alphabet = alphabet.decode("utf-8")
-            await self._get_alphabet(alphabet)
-        async with session.post(self.MAP_DATA, data={'func': 'mapPharms'}) as result:
-            map_data = await result.content.read()
-            map_data = json.loads(map_data.decode("utf-8"))
-            for i in map_data:
-                self.map_data[i['apt_adr']] = f"{i['apt_lat']}, {i['apt_lng']}"
-        async for i in self._get_names_drugs(session):
-            print(i)
+            await result.content.read()
+        # async with session.post(self.MAP_DATA, data={'func': 'mapPharms'}) as result:
+        #     map_data = await result.content.read()
+        #     map_data = json.loads(map_data.decode("utf-8"))
+        #     for i in map_data:
+        #         self.map_data[i['apt_adr']] = f"{i['apt_lat']}, {i['apt_lng']}"
+        while self.all_drugs:
+            ind = random.randrange(len(self.all_drugs))
+            i = self.all_drugs[ind]
+            del self.all_drugs[ind]
             data = await self._fetch_search(session, i)
             result = []
             for j in await self._get_url_data(data):
@@ -184,10 +202,26 @@ class ParserAcmespb:
 
     async def _create_df(self):
         """Формирование DF и сохранение в excel"""
-        with pd.ExcelWriter(f'{self.PHARMACY}.xlsx') as writer:
+        with pd.ExcelWriter(f'result/{self.PHARMACY}.xlsx') as writer:
             for page_name, value in self.result.items():
                 sh_name = page_name if len(page_name) < 30 else page_name[:30]
                 df = pd.DataFrame(value)
-                df.to_excel(writer, sheet_name=sh_name)
+                df['cost'] = df['cost'].astype(float)
+                all_uniq_address = df['address'].unique()
+                all_uniq_name = df['name'].unique()
+                struct = {'name': all_uniq_name, 'producer': None}
+                struct.update({key: None for key in all_uniq_address})
+                new_df = pd.DataFrame(struct)
+                for record in df.to_dict('records'):
+                    ind = list(new_df.loc[new_df['name'] == record['name']].index)
+                    new_df[record['address']][ind[0]] = record['cost']
+                try:
+                    new_df['min'] = new_df[all_uniq_address].min(axis=1)
+                    new_df['max'] = new_df[all_uniq_address].max(axis=1)
+                except TypeError:
+                    new_df['min'] = None
+                    new_df['max'] = None
+                new_df = new_df[['name', 'producer', 'min', 'max'] + list(all_uniq_address)]
+                new_df.to_excel(writer, sheet_name=sh_name)
 
 
