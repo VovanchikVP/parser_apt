@@ -16,6 +16,7 @@ from acmespb.acmespb import ParserAcmespb
 from util.concat_files import concat_files_excel
 from util.send_mail import send_mail
 from util.config import USER, SEND_FROM
+from lekvapteke.parser import ParserLekvapteke
 
 
 class PythonLiteralOption(click.Option):
@@ -80,6 +81,13 @@ def lek(city: int = 0, pharmacies: List[str] = None):
             Parser24LekAsync(city, pharmacies)
     else:
         Parser24LekAsync(city, pharmacies)
+
+
+@parser.command()
+@click.argument('city')
+@click.argument('max_request')
+def lekvapteke(city: int = 2, max_request: int = 1):
+    asyncio.run(ParserLekvapteke(int(max_request), int(city)).run_parser())
 
 
 if __name__ == '__main__':
